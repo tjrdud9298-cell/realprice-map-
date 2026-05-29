@@ -816,22 +816,153 @@ function setPeriod(btn) {
   showToast(`최근 ${currentMonths}개월로 변경`);
 }
 
-// ── 주소 직접 검색 ──
+// ── 단지명 / 주소 검색 ──
+// 1) 카카오 키워드 검색으로 위치 파악
+// 2) 해당 좌표의 법정동 코드 감지
+// 3) 국토부 API 호출 후 단지명으로 필터링
 function doSearch() {
   const q = document.getElementById('addr-input').value.trim();
   if (!q) return;
-  geocoder.addressSearch(q, function(result, status) {
-    if (status === kakao.maps.services.Status.OK) {
-      map.setCenter(new kakao.maps.LatLng(result[0].y, result[0].x));
+
+  setStatus('검색 중...');
+  setLoading(true);
+
+  // 키워드 검색 (단지명 포함)
+  const ps = new kakao.maps.services.Places();
+  ps.keywordSearch(q, function(result, status) {
+    if (status === kakao.maps.services.Status.OK && result.length > 0) {
+      const place = result[0];
+      const lat = parseFloat(place.y);
+      const lng = parseFloat(place.x);
+      const placeName = place.place_name;
+
+      // 지도 이동
+      map.setCenter(new kakao.maps.LatLng(lat, lng));
       map.setLevel(5);
-      showToast('📍 ' + result[0].address_name);
-    } else showToast('주소를 찾을 수 없습니다');
-  });
+
+      // 좌표 → 법정동 코드 변환
+      geocoder.coord2RegionCode(lng, lat, async function(rr, ss) {
+        if (ss !== kakao.maps.services.Status.OK) {
+          setLoading(false);
+          showToast('지역 정보를 찾을 수 없습니다');
+          return;
+        }
+        const region = rr.find(r => r.region_type === 'B');
+        if (!region) { setLoading(false); return; }
+
+        const lawdCd = region.code.substring(0, 5);
+        const regionName = region.address_name;
+        currentLawdCd = lawdCd;
+
+        // 배지 업데이트
+        const badge = document.getElementById('current-region-badge');
+        badge.textContent = regionName;
+        badge.classList.add('show');
+
+        // 국토부 API 호출
+        const months = getMonths(currentMonths);
+        const API_MAP = {
+          '아파트':    'getRTMSDataSvcAptTradeDev',
+          '연립다세대': 'getRTMSDataSvcRHTrade',
+          '단독주택':  'getRTMSDataSvcSHTrade',
+        };
+        const svc = API_MAP[currentType];
+        let allDeals = [];
+
+        try {
+          for (const yyyyMM of months) {
+            const ckey = `${currentType}_${yyyyMM}_${lawdCd}`;
+            if (cache[ckey]) { allDeals = allDeals.concat(cache[ckey]); continue; }
+
+            const url = `https://apis.data.go.kr/1613000/${svc}?serviceKey=${DATA_KEY}&pageNo=1&numOfRows=200&LAWD_CD=${lawdCd}&DEAL_YMD=${yyyyMM}`;
+            const res = await fetch(url);
+            const text = await res.text();
+            const xml = new DOMParser().parseFromString(text, 'text/xml');
+            const items = xml.querySelectorAll('item');
+            const parsed = [];
+
+            items.forEach(item => {
+              const g = tag => { const el = item.querySelector(tag); return el ? el.textContent.trim() : ''; };
+              let name, area, floor, date;
+              if (currentType === '아파트') {
+                name  = g('aptNm') || g('아파트');
+                area  = g('excluUseAr') || g('전용면적');
+                floor = (g('floor') || g('층')) + '층';
+                date  = `${g('dealYear')||g('년')}.${String(g('dealMonth')||g('월')).padStart(2,'0')}`;
+              } else if (currentType === '연립다세대') {
+                name  = g('mhouseNm') || g('연립다세대') || '연립다세대';
+                area  = g('excluUseAr') || g('전용면적');
+                floor = (g('floor') || g('층')) + '층';
+                date  = `${g('dealYear')||g('년')}.${String(g('dealMonth')||g('월')).padStart(2,'0')}`;
+              } else {
+                name  = g('houseType') || '단독/다가구';
+                area  = g('totalFloorAr') || g('연면적');
+                floor = '-';
+                date  = `${g('dealYear')||g('년')}.${String(g('dealMonth')||g('월')).padStart(2,'0')}`;
+              }
+              const price = parseInt((g('dealAmount')||g('거래금액')).replace(/,/g,'')) || 0;
+              if (price <= 0) return;
+              parsed.push({ name, area: parseFloat(area)||0, floor, date, price,
+                jibun: g('jibun')||g('지번'), umdNm: g('umdNm')||g('법정동'),
+                type: currentType, regionName });
+            });
+
+            cache[ckey] = parsed;
+            allDeals = allDeals.concat(parsed);
+          }
+
+          setLoading(false);
+
+          // 단지명 키워드로 필터링
+          const keyword = q.replace(/아파트|APT|apt/gi, '').trim();
+          const filtered = allDeals.filter(d =>
+            d.name && d.name.replace(/\s/g,'').includes(keyword.replace(/\s/g,''))
+          );
+          const showDeals = filtered.length > 0 ? filtered : allDeals;
+          const title = filtered.length > 0
+            ? `"${placeName}" 검색 결과`
+            : regionName + ' 전체';
+
+          if (filtered.length > 0) {
+            showToast(`🏢 "${placeName}" ${filtered.length}건 찾았습니다`);
+          } else {
+            showToast(`"${q}" 거래 없음 → ${regionName} 전체 ${allDeals.length}건 표시`);
+          }
+
+          setStatus(title + ' · ' + showDeals.length + '건');
+          clearBubbles();
+          renderBubbles(showDeals);
+          updateSummary(showDeals);
+          buildDealList(showDeals);
+          openSidebar(title, showDeals);
+
+        } catch(e) {
+          setLoading(false);
+          console.error(e);
+          showToast('⚠ 데이터 로드 실패 — 잠시 후 다시 시도해주세요', 3000);
+        }
+      });
+
+    } else {
+      // 키워드 검색 실패 시 주소 검색으로 fallback
+      geocoder.addressSearch(q, function(result, status) {
+        setLoading(false);
+        if (status === kakao.maps.services.Status.OK) {
+          map.setCenter(new kakao.maps.LatLng(result[0].y, result[0].x));
+          map.setLevel(5);
+          showToast('📍 ' + result[0].address_name);
+        } else {
+          showToast('검색 결과가 없습니다. 단지명이나 주소를 확인해주세요');
+          setStatus('검색 결과 없음');
+        }
+      });
+    }
+  }, { category_group_code: '' });
 }
 document.getElementById('addr-input').addEventListener('keydown', e=>{if(e.key==='Enter')doSearch();});
 </script>
 
-<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=95756e912755075d82b76293236e5d62&libraries=services&autoload=false"></script>
+<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=95756e912755075d82b76293236e5d62&libraries=services,places&autoload=false"></script>
 <script>kakao.maps.load(initMap);</script>
 </body>
 </html>
