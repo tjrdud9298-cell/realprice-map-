@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>실거래가 지도 — 아파트·연립·단독주택</title>
+<meta name="description" content="국토교통부 실거래가를 지도에서 쉽게 확인하세요">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; font-family: 'Noto Sans KR', sans-serif; overflow: hidden; }
+
+/* ── TOP BAR ── */
+#topbar {
+  position: fixed; top: 0; left: 0; right: 0;
+  height: 56px; z-index: 500;
+  background: #1C1B1F;
+  display: flex; align-items: center;
+  padding: 0 16px; gap: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.logo-wrap { display: flex; align-items: center; gap: 8px; margin-right: 6px; flex-shrink: 0; }
+.logo-mark {
+  width: 28px; height: 28px; background: #E03131;
+  border-radius: 7px; display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700; color: #fff;
+}
+.logo-txt { font-size: 14px; font-weight: 700; color: #fff; white-space: nowrap; }
+.logo-txt span { color: #E03131; }
+
+/* search */
+.search-box {
+  flex: 1; max-width: 380px;
+  display: flex; align-items: center;
+  background: rgba(255,255,255,0.09);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 10px;
+  padding: 0 12px; gap: 8px;
+  transition: border-color 0.15s;
+}
+.search-box:focus-within { border-color: #E03131; }
+.search-box input {
+  flex: 1; background: none; border: none; outline: none;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 13px; color: #fff; padding: 9px 0;
+}
+.search-box input::placeholder { color: rgba(255,255,255,0.3); }
+.search-box .ico { font-size: 15px; color: rgba(255,255,255,0.4); }
+.btn-go {
+  padding: 7px 14px; background: #E03131; color: #fff;
+  border: none; border-radius: 8px;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 12px; font-weight: 700; cursor: pointer;
+  white-space: nowrap; transition: background 0.15s;
+  flex-shrink: 0;
+}
+.btn-go:hover { background: #C42B2B; }
+
+/* type filter */
+.type-filter { display: flex; gap: 4px; flex-shrink: 0; margin-left: 4px; }
+.tf-btn {
+  padding: 6px 13px; border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: transparent;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 12px; font-weight: 500;
+  color: rgba(255,255,255,0.55);
+  cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.tf-btn.active { background: #E03131; border-color: #E03131; color: #fff; }
+.tf-btn:hover:not(.active) { border-color: rgba(255,255,255,0.4); color: #fff; }
+
+/* period filter */
+.period-filter { display: flex; gap: 3px; flex-shrink: 0; margin-left: auto; }
+.pf-btn {
+  padding: 5px 10px; border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: transparent;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 11px; color: rgba(255,255,255,0.45);
+  cursor: pointer; transition: all 0.15s;
+}
+.pf-btn.active { background: rgba(255,255,255,0.12); color: #fff; border-color: rgba(255,255,255,0.3); }
+
+/* ── MAP ── */
+#map { position: fixed; top: 56px; left: 0; right: 0; bottom: 0; }
+
+/* ── SIDEBAR ── */
+#sidebar {
+  position: fixed; top: 56px; right: 0; bottom: 0;
+  width: 320px; background: #fff;
+  box-shadow: -4px 0 20px rgba(0,0,0,0.12);
+  z-index: 400; display: flex; flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+}
+#sidebar.open { transform: translateX(0); }
+
+.sidebar-head {
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid #F0EEE8;
+  display: flex; align-items: flex-start; justify-content: space-between;
+}
+.sidebar-name { font-size: 15px; font-weight: 700; color: #1C1B1F; }
+.sidebar-sub { font-size: 11px; color: #9C9890; margin-top: 2px; }
+.btn-close {
+  background: none; border: none; font-size: 20px;
+  color: #9C9890; cursor: pointer; padding: 0; flex-shrink: 0;
+}
+
+.sidebar-tabs { display: flex; border-bottom: 1px solid #F0EEE8; }
+.stab {
+  flex: 1; padding: 10px; border: none; background: none;
+  font-family: 'Noto Sans KR', sans-serif; font-size: 12px; font-weight: 500;
+  color: #9C9890; cursor: pointer; transition: all 0.15s;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.stab.active { color: #E03131; border-bottom-color: #E03131; }
+
+.sidebar-body { flex: 1; overflow-y: auto; }
+
+/* deal list */
+.deal-list { display: flex; flex-direction: column; }
+.deal-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid #F7F6F4;
+  cursor: pointer; transition: background 0.1s;
+}
+.deal-item:hover { background: #FAFAF8; }
+.deal-item.selected { background: #FDF1EE; }
+.deal-row1 { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 3px; }
+.deal-name { font-size: 13px; font-weight: 700; color: #1C1B1F; }
+.deal-price { font-size: 14px; font-weight: 700; color: #E03131; }
+.deal-row2 { display: flex; justify-content: space-between; }
+.deal-floor { font-size: 11px; color: #9C9890; }
+.deal-date { font-size: 11px; color: #9C9890; }
+.deal-area { font-size: 11px; color: #7A7880; }
+
+/* deal detail */
+.deal-detail { padding: 16px; display: none; }
+.deal-detail.show { display: block; }
+.detail-price-big {
+  font-size: 28px; font-weight: 700; color: #E03131;
+  margin-bottom: 4px;
+}
+.detail-name { font-size: 14px; font-weight: 700; color: #1C1B1F; margin-bottom: 12px; }
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.detail-cell { background: #F7F6F4; border-radius: 8px; padding: 10px 12px; }
+.detail-cell-label { font-size: 10px; color: #9C9890; margin-bottom: 3px; }
+.detail-cell-val { font-size: 13px; font-weight: 700; color: #1C1B1F; }
+.detail-history { margin-top: 4px; }
+.detail-history-title { font-size: 11px; font-weight: 700; color: #7A7880; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+.hist-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid #F0EEE8; }
+.hist-row:last-child { border-bottom: none; }
+.hist-date { font-size: 11px; color: #9C9890; }
+.hist-price { font-size: 12px; font-weight: 700; }
+.hist-price.up { color: #E03131; }
+.hist-price.down { color: #1A6FC8; }
+.hist-chg { font-size: 10px; color: #9C9890; }
+.btn-back { background: none; border: none; font-size: 12px; color: #9C9890; cursor: pointer; margin-bottom: 12px; display: flex; align-items: center; gap: 4px; font-family: 'Noto Sans KR', sans-serif; }
+
+/* ── MAP OVERLAYS ── */
+/* price bubble */
+.price-bubble {
+  position: absolute;
+  background: #E03131;
+  color: #fff;
+  border-radius: 20px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(224,49,49,0.4);
+  transform: translate(-50%, -50%);
+  transition: transform 0.15s, box-shadow 0.15s;
+  border: 2px solid #fff;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+.price-bubble:hover { transform: translate(-50%,-50%) scale(1.08); box-shadow: 0 4px 14px rgba(224,49,49,0.5); }
+.price-bubble.type-연립 { background: #1A6FC8; box-shadow: 0 2px 8px rgba(26,111,200,0.4); }
+.price-bubble.type-단독 { background: #2E7D52; box-shadow: 0 2px 8px rgba(46,125,82,0.4); }
+.price-bubble.selected { transform: translate(-50%,-50%) scale(1.12); z-index: 10; }
+.bubble-tail {
+  position: absolute;
+  bottom: -7px; left: 50%;
+  transform: translateX(-50%);
+  width: 0; height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid #E03131;
+}
+.price-bubble.type-연립 .bubble-tail { border-top-color: #1A6FC8; }
+.price-bubble.type-단독 .bubble-tail { border-top-color: #2E7D52; }
+
+/* ── LEGEND ── */
+#legend {
+  position: fixed; bottom: 20px; left: 16px;
+  background: rgba(28,27,31,0.85);
+  border-radius: 10px; padding: 10px 14px;
+  z-index: 400; backdrop-filter: blur(8px);
+}
+.leg-row { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; font-size: 11px; color: rgba(255,255,255,0.7); }
+.leg-row:last-child { margin-bottom: 0; }
+.leg-dot { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid #fff; }
+
+/* ── ZOOM LEVEL HINT ── */
+#zoom-hint {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: rgba(28,27,31,0.8); color: rgba(255,255,255,0.7);
+  padding: 8px 16px; border-radius: 20px; font-size: 12px;
+  z-index: 400; backdrop-filter: blur(8px);
+  display: none;
+}
+#zoom-hint.show { display: block; }
+
+/* ── INFO TOAST ── */
+#toast {
+  position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
+  background: rgba(28,27,31,0.9); color: #fff;
+  padding: 8px 18px; border-radius: 20px; font-size: 12px;
+  z-index: 600; opacity: 0; transition: opacity 0.2s;
+  pointer-events: none; white-space: nowrap;
+}
+#toast.show { opacity: 1; }
+
+/* ── SUMMARY BAR ── */
+#summary-bar {
+  position: fixed; bottom: 20px; right: 16px;
+  background: rgba(28,27,31,0.85);
+  border-radius: 10px; padding: 10px 14px;
+  z-index: 400; backdrop-filter: blur(8px);
+  font-size: 11px; color: rgba(255,255,255,0.6);
+  min-width: 140px;
+}
+#summary-bar .s-title { font-size: 10px; color: rgba(255,255,255,0.35); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.06em; }
+#summary-bar .s-avg { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 2px; }
+#summary-bar .s-range { font-size: 11px; color: rgba(255,255,255,0.5); }
+
+/* ── API SETUP BANNER ── */
+#api-banner {
+  position: fixed; top: 64px; left: 50%; transform: translateX(-50%);
+  background: #FEF8EE; border: 1.5px solid #F9DFA0;
+  border-radius: 10px; padding: 10px 16px;
+  z-index: 500; display: none;
+  align-items: center; gap: 10px;
+  font-size: 12px; color: #5C4A00;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  white-space: nowrap;
+}
+#api-banner.show { display: flex; }
+#api-banner a { color: #C97B1A; font-weight: 700; }
+#api-banner button { background: none; border: none; cursor: pointer; color: #9C9890; font-size: 16px; padding: 0; }
+
+/* ── MODAL ── */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: none; align-items: center; justify-content: center; padding: 20px; }
+.overlay.show { display: flex; }
+.modal { background: #fff; border-radius: 16px; max-width: 520px; width: 100%; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+.modal-head { padding: 22px 24px 14px; border-bottom: 1px solid #F0EEE8; }
+.modal-head h2 { font-size: 18px; font-weight: 700; }
+.modal-head p { font-size: 12px; color: #9C9890; margin-top: 3px; }
+.modal-body { padding: 20px 24px; }
+.m-step { display: flex; gap: 12px; margin-bottom: 18px; padding-bottom: 18px; border-bottom: 1px solid #F0EEE8; }
+.m-step:last-child { border-bottom: none; margin-bottom: 0; }
+.m-n { width: 24px; height: 24px; background: #1C1B1F; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+.m-step h3 { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+.m-step p { font-size: 12px; color: #7A7880; line-height: 1.7; }
+.m-step a { color: #1A6FC8; font-weight: 500; }
+.m-code { background: #F7F6F4; border: 1px solid #E4E2DD; border-radius: 6px; padding: 8px 12px; font-size: 11px; font-family: monospace; line-height: 1.7; margin-top: 6px; }
+.modal-foot { padding: 14px 24px 22px; display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid #F0EEE8; }
+.btn-mc { padding: 9px 16px; border: 1.5px solid #E4E2DD; border-radius: 8px; background: #fff; font-family: 'Noto Sans KR', sans-serif; font-size: 12px; color: #7A7880; cursor: pointer; }
+.btn-mp { padding: 9px 16px; border: none; border-radius: 8px; background: #1C1B1F; color: #fff; font-family: 'Noto Sans KR', sans-serif; font-size: 12px; font-weight: 700; cursor: pointer; }
+
+/* scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #D8D5D0; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div class="logo-wrap">
+    <div class="logo-mark">실</div>
+    <div class="logo-txt"><span>실거래가</span> 지도</div>
+  </div>
+
+  <div class="search-box">
+    <span class="ico">🔍</span>
+    <input type="text" id="addr-input" placeholder="주소, 단지명, 동 이름으로 검색" autocomplete="off">
+  </div>
+  <button class="btn-go" onclick="doSearch()">검색</button>
+
+  <div class="type-filter">
+    <button class="tf-btn active" data-type="아파트" onclick="setType(this)">🏢 아파트</button>
+    <button class="tf-btn" data-type="연립" onclick="setType(this)">🏘 연립다세대</button>
+    <button class="tf-btn" data-type="단독" onclick="setType(this)">🏠 단독주택</button>
+  </div>
+
+  <div class="period-filter">
+    <button class="pf-btn active" data-m="3" onclick="setPeriod(this)">3개월</button>
+    <button class="pf-btn" data-m="6" onclick="setPeriod(this)">6개월</button>
+    <button class="pf-btn" data-m="12" onclick="setPeriod(this)">1년</button>
+  </div>
+</div>
+
+<!-- MAP -->
+<div id="map"></div>
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <div class="sidebar-head">
+    <div>
+      <div class="sidebar-name" id="sidebar-title">거래 내역</div>
+      <div class="sidebar-sub" id="sidebar-sub">클릭한 마커의 거래 정보</div>
+    </div>
+    <button class="btn-close" onclick="closeSidebar()">✕</button>
+  </div>
+  <div class="sidebar-tabs">
+    <button class="stab active" onclick="switchSTab('list', this)">거래 목록</button>
+    <button class="stab" onclick="switchSTab('detail', this)">상세 정보</button>
+  </div>
+  <div class="sidebar-body">
+    <div id="stab-list" class="deal-list"></div>
+    <div id="stab-detail" class="deal-detail"></div>
+  </div>
+</div>
+
+<!-- LEGEND -->
+<div id="legend">
+  <div class="leg-row"><div class="leg-dot" style="background:#E03131"></div>아파트</div>
+  <div class="leg-row"><div class="leg-dot" style="background:#1A6FC8"></div>연립다세대</div>
+  <div class="leg-row"><div class="leg-dot" style="background:#2E7D52"></div>단독주택</div>
+</div>
+
+<!-- ZOOM HINT -->
+<div id="zoom-hint">🔍 더 가까이 확대하면 실거래가가 표시됩니다</div>
+
+<!-- SUMMARY BAR -->
+<div id="summary-bar">
+  <div class="s-title" id="s-type-label">아파트 평균</div>
+  <div class="s-avg" id="s-avg">—</div>
+  <div class="s-range" id="s-range">—</div>
+</div>
+
+<!-- API BANNER -->
+<div id="api-banner">
+  ⚠️ 카카오맵 API 키 미설정 —
+  <a href="#" onclick="openModal();return false;">설정 가이드 보기</a>
+  <button onclick="document.getElementById('api-banner').classList.remove('show')">✕</button>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- MODAL -->
+<div class="overlay" id="overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>🗺 카카오맵 API 설정 가이드</h2>
+      <p>무료 API 키로 실제 지도를 사용할 수 있습니다</p>
+    </div>
+    <div class="modal-body">
+      <div class="m-step">
+        <div class="m-n">1</div>
+        <div>
+          <h3>카카오 개발자 센터 접속</h3>
+          <p><a href="https://developers.kakao.com" target="_blank">developers.kakao.com</a> → 카카오 계정 로그인 → 내 애플리케이션</p>
+        </div>
+      </div>
+      <div class="m-step">
+        <div class="m-n">2</div>
+        <div>
+          <h3>JavaScript 키 복사</h3>
+          <p>기존에 만든 앱(안심전세체크) → 앱 키 → <strong>JavaScript 키</strong> 복사<br>또는 새 앱 생성 후 키 복사</p>
+        </div>
+      </div>
+      <div class="m-step">
+        <div class="m-n">3</div>
+        <div>
+          <h3>플랫폼 도메인 추가</h3>
+          <p>앱 설정 → 플랫폼 → Web → 사이트 도메인:</p>
+          <div class="m-code">https://mrlee0453-netizen.github.io</div>
+        </div>
+      </div>
+      <div class="m-step">
+        <div class="m-n">4</div>
+        <div>
+          <h3>index.html에서 키 교체</h3>
+          <p>파일 맨 아래 스크립트에서 이 줄을 찾아 교체:</p>
+          <div class="m-code">const KAKAO_KEY = 'YOUR_KAKAO_API_KEY'; // ← 여기</div>
+        </div>
+      </div>
+      <div class="m-step">
+        <div class="m-n">5</div>
+        <div>
+          <h3>GitHub에 파일 업로드</h3>
+          <p>github.com → realprice-map 레포지토리 생성 → index.html 업로드<br>Settings → Pages → main branch → Save</p>
+          <div class="m-code">https://mrlee0453-netizen.github.io/realprice-map</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-mc" onclick="closeModal()">닫기</button>
+      <button class="btn-mp" onclick="window.open('https://developers.kakao.com','_blank')">카카오 개발자 센터 →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── KAKAO MAP API KEY HERE ── -->
+<script>
+const KAKAO_KEY = '95756e912755075d82b76293236e5d62'; // ← 발급받은 JavaScript 키로 교체
+</script>
+
+<script>
+// ── SIMULATION DATA ──
+const DEALS = {
+  아파트: [
+    // 서울 강남
+    { id:1, lat:37.5172, lng:127.0473, name:'래미안대치팰리스', addr:'서울 강남구 대치동', price:250000, area:84.9, floor:'12층', date:'2026.04', type:'아파트',
+      history:[{date:'2026.04',price:250000},{date:'2025.10',price:238000},{date:'2025.04',price:225000},{date:'2024.10',price:219000}] },
+    { id:2, lat:37.5145, lng:127.0558, name:'은마아파트', addr:'서울 강남구 대치동', price:200000, area:76.5, floor:'8층', date:'2026.04', type:'아파트',
+      history:[{date:'2026.04',price:200000},{date:'2025.10',price:192000},{date:'2025.04',price:184000},{date:'2024.10',price:178000}] },
+    { id:3, lat:37.5283, lng:127.0432, name:'힐스테이트압구정', addr:'서울 강남구 압구정동', price:420000, area:143.2, floor:'18층', date:'2026.03', type:'아파트',
+      history:[{date:'2026.03',price:420000},{date:'2025.09',price:398000},{date:'2025.03',price:372000}] },
+    // 서울 마포
+    { id:4, lat:37.5519, lng:126.9139, name:'마포래미안푸르지오', addr:'서울 마포구 아현동', price:128000, area:84.3, floor:'14층', date:'2026.04', type:'아파트',
+      history:[{date:'2026.04',price:128000},{date:'2025.10',price:121000},{date:'2025.04',price:115000}] },
+    { id:5, lat:37.5494, lng:126.9227, name:'공덕SK리더스뷰', addr:'서울 마포구 공덕동', price:115000, area:59.9, floor:'22층', date:'2026.05', type:'아파트',
+      history:[{date:'2026.05',price:115000},{date:'2025.11',price:109000},{date:'2025.05',price:103000}] },
+    // 서울 송파
+    { id:6, lat:37.5126, lng:127.1020, name:'헬리오시티', addr:'서울 송파구 가락동', price:182000, area:99.5, floor:'31층', date:'2026.04', type:'아파트',
+      history:[{date:'2026.04',price:182000},{date:'2025.10',price:172000},{date:'2025.04',price:162000}] },
+    { id:7, lat:37.5078, lng:127.1232, name:'잠실엘스', addr:'서울 송파구 잠실동', price:268000, area:119.9, floor:'15층', date:'2026.03', type:'아파트',
+      history:[{date:'2026.03',price:268000},{date:'2025.09',price:254000},{date:'2025.03',price:242000}] },
+    // 서울 용산
+    { id:8, lat:37.5340, lng:126.9990, name:'한남더힐', addr:'서울 용산구 한남동', price:680000, area:244.0, floor:'4층', date:'2026.02', type:'아파트',
+      history:[{date:'2026.02',price:680000},{date:'2025.08',price:640000},{date:'2025.02',price:600000}] },
+    // 성남 분당
+    { id:9, lat:37.3595, lng:127.1052, name:'파크뷰', addr:'경기 성남시 분당구 정자동', price:148000, area:134.9, floor:'9층', date:'2026.04', type:'아파트',
+      history:[{date:'2026.04',price:148000},{date:'2025.10',price:140000},{date:'2025.04',price:132000}] },
+    { id:10, lat:37.3818, lng:127.1197, name:'서현역 센트럴아이파크', addr:'경기 성남시 분당구 서현동', price:112000, area:84.9, floor:'7층', date:'2026.05', type:'아파트',
+      history:[{date:'2026.05',price:112000},{date:'2025.11',price:105000},{date:'2025.05',price:99000}] },
+    // 인천
+    { id:11, lat:37.4563, lng:126.7052, name:'청라국제도시 한양수자인', addr:'인천 서구 청라동', price:56000, area:84.9, floor:'18층', date:'2026.04', type:'아파트',
+      history:[{date:'2026.04',price:56000},{date:'2025.10',price:54000},{date:'2025.04',price:52000}] },
+    { id:12, lat:37.4512, lng:126.6548, name:'송도 더샵마스터뷰', addr:'인천 연수구 송도동', price:78000, area:99.9, floor:'25층', date:'2026.03', type:'아파트',
+      history:[{date:'2026.03',price:78000},{date:'2025.09',price:75000},{date:'2025.03',price:71000}] },
+  ],
+  연립: [
+    { id:101, lat:37.5590, lng:126.9237, name:'망원동 연립', addr:'서울 마포구 망원동', price:42000, area:56.2, floor:'3층', date:'2026.04', type:'연립',
+      history:[{date:'2026.04',price:42000},{date:'2025.10',price:41000},{date:'2025.04',price:39000}] },
+    { id:102, lat:37.5481, lng:126.8853, name:'합정역 빌라', addr:'서울 마포구 합정동', price:38000, area:49.8, floor:'2층', date:'2026.05', type:'연립',
+      history:[{date:'2026.05',price:38000},{date:'2025.11',price:36500},{date:'2025.05',price:35000}] },
+    { id:103, lat:37.5162, lng:127.0228, name:'역삼동 다세대', addr:'서울 강남구 역삼동', price:67000, area:63.4, floor:'4층', date:'2026.03', type:'연립',
+      history:[{date:'2026.03',price:67000},{date:'2025.09',price:64000},{date:'2025.03',price:61000}] },
+    { id:104, lat:37.4882, lng:126.9240, name:'봉천동 연립', addr:'서울 관악구 봉천동', price:28000, area:44.5, floor:'2층', date:'2026.04', type:'연립',
+      history:[{date:'2026.04',price:28000},{date:'2025.10',price:27000},{date:'2025.04',price:26000}] },
+    { id:105, lat:37.5032, lng:126.8882, name:'신림동 다세대', addr:'서울 관악구 신림동', price:24000, area:38.2, floor:'3층', date:'2026.05', type:'연립',
+      history:[{date:'2026.05',price:24000},{date:'2025.11',price:23000},{date:'2025.05',price:22000}] },
+    { id:106, lat:37.4823, lng:126.8952, name:'화곡동 빌라', addr:'서울 강서구 화곡동', price:19000, area:42.1, floor:'1층', date:'2026.04', type:'연립',
+      history:[{date:'2026.04',price:19000},{date:'2025.10',price:18500},{date:'2025.04',price:17500}] },
+  ],
+  단독: [
+    { id:201, lat:37.5794, lng:126.9770, name:'부암동 단독주택', addr:'서울 종로구 부암동', price:145000, area:198.4, floor:'지상2층', date:'2026.03', type:'단독',
+      history:[{date:'2026.03',price:145000},{date:'2025.09',price:138000},{date:'2025.03',price:130000}] },
+    { id:202, lat:37.5496, lng:126.8991, name:'연남동 단독', addr:'서울 마포구 연남동', price:88000, area:142.6, floor:'지상2층', date:'2026.04', type:'단독',
+      history:[{date:'2026.04',price:88000},{date:'2025.10',price:84000},{date:'2025.04',price:80000}] },
+    { id:203, lat:37.5270, lng:127.0438, name:'압구정동 단독', addr:'서울 강남구 압구정동', price:320000, area:386.0, floor:'지상3층', date:'2026.02', type:'단독',
+      history:[{date:'2026.02',price:320000},{date:'2025.08',price:298000},{date:'2025.02',price:278000}] },
+    { id:204, lat:37.4482, lng:126.9012, name:'시흥동 단독', addr:'서울 금천구 시흥동', price:52000, area:165.2, floor:'지상2층', date:'2026.05', type:'단독',
+      history:[{date:'2026.05',price:52000},{date:'2025.11',price:50000},{date:'2025.05',price:48000}] },
+    { id:205, lat:37.6124, lng:126.9018, name:'은평뉴타운 단독', addr:'서울 은평구 진관동', price:74000, area:228.3, floor:'지상3층', date:'2026.04', type:'단독',
+      history:[{date:'2026.04',price:74000},{date:'2025.10',price:71000},{date:'2025.04',price:68000}] },
+  ]
+};
+
+// ── STATE ──
+let map = null;
+let currentType = '아파트';
+let currentPeriod = 3;
+let bubbles = [];
+let selectedId = null;
+let sidebarOpen = false;
+
+// ── FORMAT ──
+function fmtPrice(만원) {
+  if (만원 >= 10000) {
+    const 억 = Math.floor(만원 / 10000);
+    const 나머지 = 만원 % 10000;
+    return 나머지 > 0 ? `${억}억 ${나머지.toLocaleString()}만` : `${억}억`;
+  }
+  return `${만원.toLocaleString()}만`;
+}
+
+// ── INIT MAP ──
+function initMap() {
+  if (typeof kakao === 'undefined') {
+    document.getElementById('api-banner').classList.add('show');
+    initFakeMap();
+    return;
+  }
+  const container = document.getElementById('map');
+  const options = { center: new kakao.maps.LatLng(37.5326, 127.0246), level: 7 };
+  map = new kakao.maps.Map(container, options);
+
+  kakao.maps.event.addListener(map, 'zoom_changed', () => {
+    const lv = map.getLevel();
+    const hint = document.getElementById('zoom-hint');
+    if (lv > 6) hint.classList.add('show');
+    else { hint.classList.remove('show'); renderBubbles(); }
+  });
+  kakao.maps.event.addListener(map, 'dragend', renderBubbles);
+
+  renderBubbles();
+}
+
+// 카카오 없을 때 빈 배경
+function initFakeMap() {
+  const m = document.getElementById('map');
+  m.style.background = 'linear-gradient(135deg, #E8E6E0 0%, #D4D2CC 100%)';
+  m.innerHTML = `<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;color:#9C9890;">
+    <div style="font-size:48px;margin-bottom:12px">🗺</div>
+    <div style="font-size:15px;font-weight:700;color:#5C5955;margin-bottom:6px">카카오맵 API 키를 설정해주세요</div>
+    <div style="font-size:13px">우측 상단 ⚙ API 설정 버튼을 클릭하세요</div>
+    <button onclick="openModal()" style="margin-top:14px;padding:10px 20px;background:#E03131;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;">설정 가이드 보기</button>
+  </div>`;
+
+  // 시뮬레이션: 지도 없이 목록만 보여주기
+  showDealListOnly();
+}
+
+function showDealListOnly() {
+  const deals = DEALS[currentType] || [];
+  updateSummary(deals);
+}
+
+// ── RENDER BUBBLES ──
+function renderBubbles() {
+  clearBubbles();
+  if (!map) return;
+
+  const deals = DEALS[currentType] || [];
+  const bounds = map.getBounds();
+  const lv = map.getLevel();
+
+  if (lv > 6) {
+    document.getElementById('zoom-hint').classList.add('show');
+    return;
+  }
+  document.getElementById('zoom-hint').classList.remove('show');
+
+  const visible = deals.filter(d => {
+    const latlng = new kakao.maps.LatLng(d.lat, d.lng);
+    return bounds.contain(latlng);
+  });
+
+  visible.forEach(d => createBubble(d));
+  updateSummary(visible.length > 0 ? visible : deals);
+}
+
+function createBubble(deal) {
+  if (!map) return;
+  const pos = new kakao.maps.LatLng(deal.lat, deal.lng);
+  const overlay = new kakao.maps.CustomOverlay({ position: pos, yAnchor: 1.3, zIndex: 3 });
+
+  const typeClass = deal.type === '연립' ? 'type-연립' : deal.type === '단독' ? 'type-단독' : '';
+  const el = document.createElement('div');
+  el.className = `price-bubble ${typeClass}${selectedId === deal.id ? ' selected' : ''}`;
+  el.innerHTML = `${fmtPrice(deal.price)}<div class="bubble-tail"></div>`;
+  el.addEventListener('click', () => onBubbleClick(deal, el));
+  overlay.setContent(el);
+  overlay.setMap(map);
+  bubbles.push({ overlay, el, deal });
+}
+
+function clearBubbles() {
+  bubbles.forEach(b => b.overlay.setMap(null));
+  bubbles = [];
+}
+
+function onBubbleClick(deal, el) {
+  // deselect all
+  bubbles.forEach(b => b.el.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedId = deal.id;
+  openSidebar(deal);
+}
+
+// ── SIDEBAR ──
+function openSidebar(deal) {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebar-title').textContent = deal.name;
+  document.getElementById('sidebar-sub').textContent = deal.addr + ' · ' + deal.type;
+  sidebarOpen = true;
+
+  // fill list (same complex deals)
+  buildDealList(deal);
+  buildDealDetail(deal);
+  switchSTab('list', document.querySelector('.stab'));
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  sidebarOpen = false;
+  selectedId = null;
+  bubbles.forEach(b => b.el.classList.remove('selected'));
+}
+
+function switchSTab(name, btn) {
+  document.querySelectorAll('.stab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  document.getElementById('stab-list').style.display = name === 'list' ? 'flex' : 'none';
+  document.getElementById('stab-list').style.flexDirection = 'column';
+  document.getElementById('stab-detail').style.display = name === 'detail' ? 'block' : 'none';
+}
+
+function buildDealList(selectedDeal) {
+  const all = DEALS[currentType] || [];
+  const nearby = all.filter(d =>
+    Math.abs(d.lat - selectedDeal.lat) < 0.01 && Math.abs(d.lng - selectedDeal.lng) < 0.01
+  );
+  const list = nearby.length > 1 ? nearby : all.slice(0, 8);
+
+  const el = document.getElementById('stab-list');
+  el.innerHTML = list.map(d => `
+    <div class="deal-item${d.id === selectedDeal.id ? ' selected' : ''}" onclick="buildDealDetail(${JSON.stringify(d).replace(/"/g,'&quot;')});switchSTab('detail',null);document.querySelectorAll('.stab').forEach((b,i)=>{b.classList.toggle('active',i===1)})">
+      <div class="deal-row1">
+        <div class="deal-name">${d.name}</div>
+        <div class="deal-price">${fmtPrice(d.price)}</div>
+      </div>
+      <div class="deal-row2">
+        <span class="deal-area">${d.area}㎡ · ${d.floor}</span>
+        <span class="deal-date">${d.date}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function buildDealDetail(deal) {
+  if (typeof deal === 'string') deal = JSON.parse(deal);
+  const el = document.getElementById('stab-detail');
+  const histHTML = deal.history.map((h, i) => {
+    const prev = deal.history[i+1];
+    const chg = prev ? h.price - prev.price : 0;
+    const chgTxt = chg !== 0 ? (chg > 0 ? `▲${fmtPrice(Math.abs(chg))}` : `▼${fmtPrice(Math.abs(chg))}`) : '─';
+    const cls = chg > 0 ? 'up' : chg < 0 ? 'down' : '';
+    return `<div class="hist-row">
+      <span class="hist-date">${h.date}</span>
+      <span class="hist-price ${cls}">${fmtPrice(h.price)}</span>
+      <span class="hist-chg">${chgTxt}</span>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <button class="btn-back" onclick="switchSTab('list',null);document.querySelectorAll('.stab').forEach((b,i)=>b.classList.toggle('active',i===0))">← 목록으로</button>
+    <div class="detail-price-big">${fmtPrice(deal.price)}</div>
+    <div class="detail-name">${deal.name}</div>
+    <div class="detail-grid">
+      <div class="detail-cell"><div class="detail-cell-label">전용면적</div><div class="detail-cell-val">${deal.area}㎡</div></div>
+      <div class="detail-cell"><div class="detail-cell-label">층수</div><div class="detail-cell-val">${deal.floor}</div></div>
+      <div class="detail-cell"><div class="detail-cell-label">거래일</div><div class="detail-cell-val">${deal.date}</div></div>
+      <div class="detail-cell"><div class="detail-cell-label">유형</div><div class="detail-cell-val">${deal.type}</div></div>
+    </div>
+    <div class="detail-history">
+      <div class="detail-history-title">📈 최근 거래 내역</div>
+      ${histHTML}
+    </div>
+  `;
+  el.classList.add('show');
+}
+
+// ── SUMMARY BAR ──
+function updateSummary(deals) {
+  if (!deals || deals.length === 0) {
+    document.getElementById('s-avg').textContent = '—';
+    document.getElementById('s-range').textContent = '표시된 거래 없음';
+    return;
+  }
+  const prices = deals.map(d => d.price);
+  const avg = Math.round(prices.reduce((a,b) => a+b, 0) / prices.length);
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  document.getElementById('s-type-label').textContent = currentType + ' 평균';
+  document.getElementById('s-avg').textContent = fmtPrice(avg);
+  document.getElementById('s-range').textContent = `${fmtPrice(min)} ~ ${fmtPrice(max)}`;
+}
+
+// ── FILTERS ──
+function setType(btn) {
+  document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentType = btn.dataset.type;
+  if (sidebarOpen) closeSidebar();
+  if (map) renderBubbles();
+  else showDealListOnly();
+  showToast(currentType + ' 실거래가로 변경했습니다');
+}
+
+function setPeriod(btn) {
+  document.querySelectorAll('.pf-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentPeriod = parseInt(btn.dataset.m);
+  if (map) renderBubbles();
+  showToast(`최근 ${currentPeriod}개월 거래 표시`);
+}
+
+// ── SEARCH ──
+function doSearch() {
+  const q = document.getElementById('addr-input').value.trim();
+  if (!q) return;
+  if (!map) { showToast('카카오맵 API 설정 후 검색 가능합니다'); return; }
+
+  const geocoder = new kakao.maps.services.Geocoder();
+  geocoder.addressSearch(q, function(result, status) {
+    if (status === kakao.maps.services.Status.OK) {
+      const coords = new kakao.maps.LatLng(result[0].y, result[0].x);
+      map.setCenter(coords);
+      map.setLevel(5);
+      renderBubbles();
+      showToast('📍 ' + q + ' 으로 이동했습니다');
+    } else {
+      showToast('주소를 찾을 수 없습니다. 다시 입력해주세요');
+    }
+  });
+}
+
+// ── TOAST ──
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ── MODAL ──
+function openModal() { document.getElementById('overlay').classList.add('show'); }
+function closeModal() { document.getElementById('overlay').classList.remove('show'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// ── EVENTS ──
+document.getElementById('addr-input').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+
+// ── KAKAO LOAD ──
+(function() {
+  if (KAKAO_KEY === 'YOUR_KAKAO_API_KEY') {
+    document.getElementById('api-banner').classList.add('show');
+    initFakeMap();
+    return;
+  }
+  const s = document.createElement('script');
+  s.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_KEY}&libraries=services`;
+  s.onload = initMap;
+  s.onerror = () => { document.getElementById('api-banner').classList.add('show'); initFakeMap(); };
+  document.head.appendChild(s);
+})();
+</script>
+</body>
+</html>
