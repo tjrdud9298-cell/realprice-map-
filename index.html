@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>실거래가 지도 — 아파트·연립·단독주택</title>
+<meta name="description" content="국토교통부 실거래가를 지도에서 쉽게 확인하세요">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;font-family:'Noto Sans KR',sans-serif;overflow:hidden}
+
+#topbar{position:fixed;top:0;left:0;right:0;height:56px;z-index:500;background:#1C1B1F;display:flex;align-items:center;padding:0 16px;gap:10px;border-bottom:1px solid rgba(255,255,255,0.08)}
+.logo-wrap{display:flex;align-items:center;gap:8px;margin-right:6px;flex-shrink:0}
+.logo-mark{width:28px;height:28px;background:#E03131;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff}
+.logo-txt{font-size:14px;font-weight:700;color:#fff;white-space:nowrap}
+.logo-txt span{color:#E03131}
+
+.search-box{flex:1;max-width:380px;display:flex;align-items:center;background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:0 12px;gap:8px;transition:border-color 0.15s}
+.search-box:focus-within{border-color:#E03131}
+.search-box input{flex:1;background:none;border:none;outline:none;font-family:'Noto Sans KR',sans-serif;font-size:13px;color:#fff;padding:9px 0}
+.search-box input::placeholder{color:rgba(255,255,255,0.3)}
+.btn-go{padding:7px 14px;background:#E03131;color:#fff;border:none;border-radius:8px;font-family:'Noto Sans KR',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.btn-go:hover{background:#C42B2B}
+
+.type-filter{display:flex;gap:4px;flex-shrink:0;margin-left:4px}
+.tf-btn{padding:6px 13px;border-radius:20px;border:1px solid rgba(255,255,255,0.2);background:transparent;font-family:'Noto Sans KR',sans-serif;font-size:12px;font-weight:500;color:rgba(255,255,255,0.55);cursor:pointer;transition:all 0.15s;white-space:nowrap}
+.tf-btn.active{background:#E03131;border-color:#E03131;color:#fff}
+.tf-btn:hover:not(.active){border-color:rgba(255,255,255,0.4);color:#fff}
+
+.period-filter{display:flex;gap:3px;flex-shrink:0;margin-left:auto}
+.pf-btn{padding:5px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:transparent;font-family:'Noto Sans KR',sans-serif;font-size:11px;color:rgba(255,255,255,0.45);cursor:pointer;transition:all 0.15s}
+.pf-btn.active{background:rgba(255,255,255,0.12);color:#fff;border-color:rgba(255,255,255,0.3)}
+
+#map{position:fixed;top:56px;left:0;right:0;bottom:0}
+
+#sidebar{position:fixed;top:56px;right:0;bottom:0;width:340px;background:#fff;box-shadow:-4px 0 20px rgba(0,0,0,0.12);z-index:400;display:flex;flex-direction:column;transform:translateX(100%);transition:transform 0.25s cubic-bezier(0.4,0,0.2,1)}
+#sidebar.open{transform:translateX(0)}
+.sidebar-head{padding:16px 16px 12px;border-bottom:1px solid #F0EEE8;display:flex;align-items:flex-start;justify-content:space-between}
+.sidebar-name{font-size:15px;font-weight:700;color:#1C1B1F}
+.sidebar-sub{font-size:11px;color:#9C9890;margin-top:2px}
+.btn-close{background:none;border:none;font-size:20px;color:#9C9890;cursor:pointer;padding:0;flex-shrink:0}
+.sidebar-tabs{display:flex;border-bottom:1px solid #F0EEE8}
+.stab{flex:1;padding:10px;border:none;background:none;font-family:'Noto Sans KR',sans-serif;font-size:12px;font-weight:500;color:#9C9890;cursor:pointer;transition:all 0.15s;border-bottom:2px solid transparent;margin-bottom:-1px}
+.stab.active{color:#E03131;border-bottom-color:#E03131}
+.sidebar-body{flex:1;overflow-y:auto}
+
+.deal-list{display:flex;flex-direction:column}
+.deal-item{padding:12px 16px;border-bottom:1px solid #F7F6F4;cursor:pointer;transition:background 0.1s}
+.deal-item:hover{background:#FAFAF8}
+.deal-item.selected{background:#FDF1EE}
+.deal-row1{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px}
+.deal-name{font-size:13px;font-weight:700;color:#1C1B1F}
+.deal-price{font-size:14px;font-weight:700;color:#E03131}
+.deal-row2{display:flex;justify-content:space-between}
+.deal-floor{font-size:11px;color:#9C9890}
+.deal-date{font-size:11px;color:#9C9890}
+.deal-area{font-size:11px;color:#7A7880}
+
+.deal-detail{padding:16px}
+.detail-price-big{font-size:28px;font-weight:700;color:#E03131;margin-bottom:4px}
+.detail-name{font-size:14px;font-weight:700;color:#1C1B1F;margin-bottom:12px}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.detail-cell{background:#F7F6F4;border-radius:8px;padding:10px 12px}
+.detail-cell-label{font-size:10px;color:#9C9890;margin-bottom:3px}
+.detail-cell-val{font-size:13px;font-weight:700;color:#1C1B1F}
+.detail-history-title{font-size:11px;font-weight:700;color:#7A7880;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em}
+.hist-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #F0EEE8}
+.hist-row:last-child{border-bottom:none}
+.hist-date{font-size:11px;color:#9C9890}
+.hist-price{font-size:12px;font-weight:700}
+.hist-price.up{color:#E03131}
+.hist-price.down{color:#1A6FC8}
+.hist-chg{font-size:10px;color:#9C9890}
+.btn-back{background:none;border:none;font-size:12px;color:#9C9890;cursor:pointer;margin-bottom:12px;display:flex;align-items:center;gap:4px;font-family:'Noto Sans KR',sans-serif}
+
+.price-bubble{position:absolute;background:#E03131;color:#fff;border-radius:20px;padding:5px 10px;font-size:11px;font-weight:700;white-space:nowrap;cursor:pointer;box-shadow:0 2px 8px rgba(224,49,49,0.4);transform:translate(-50%,-50%);transition:transform 0.15s,box-shadow 0.15s;border:2px solid #fff;font-family:'Noto Sans KR',sans-serif}
+.price-bubble:hover{transform:translate(-50%,-50%) scale(1.08)}
+.price-bubble.type-연립{background:#1A6FC8;box-shadow:0 2px 8px rgba(26,111,200,0.4)}
+.price-bubble.type-단독{background:#2E7D52;box-shadow:0 2px 8px rgba(46,125,82,0.4)}
+.price-bubble.selected{transform:translate(-50%,-50%) scale(1.12);z-index:10}
+.bubble-tail{position:absolute;bottom:-7px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:7px solid #E03131}
+.price-bubble.type-연립 .bubble-tail{border-top-color:#1A6FC8}
+.price-bubble.type-단독 .bubble-tail{border-top-color:#2E7D52}
+
+#legend{position:fixed;bottom:20px;left:16px;background:rgba(28,27,31,0.85);border-radius:10px;padding:10px 14px;z-index:400;backdrop-filter:blur(8px)}
+.leg-row{display:flex;align-items:center;gap:7px;margin-bottom:5px;font-size:11px;color:rgba(255,255,255,0.7)}
+.leg-row:last-child{margin-bottom:0}
+.leg-dot{width:10px;height:10px;border-radius:50%;border:1.5px solid #fff}
+
+#zoom-hint{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(28,27,31,0.8);color:rgba(255,255,255,0.7);padding:8px 16px;border-radius:20px;font-size:12px;z-index:400;backdrop-filter:blur(8px);display:none}
+#zoom-hint.show{display:block}
+
+#summary-bar{position:fixed;bottom:20px;right:16px;background:rgba(28,27,31,0.85);border-radius:10px;padding:10px 14px;z-index:400;backdrop-filter:blur(8px);font-size:11px;color:rgba(255,255,255,0.6);min-width:150px}
+#summary-bar .s-title{font-size:10px;color:rgba(255,255,255,0.35);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.06em}
+#summary-bar .s-avg{font-size:16px;font-weight:700;color:#fff;margin-bottom:2px}
+#summary-bar .s-range{font-size:11px;color:rgba(255,255,255,0.5)}
+#summary-bar .s-count{font-size:10px;color:rgba(255,255,255,0.35);margin-top:3px}
+
+#loading-bar{position:fixed;top:56px;left:0;right:0;height:3px;background:#E03131;z-index:600;transform:scaleX(0);transform-origin:left;transition:transform 0.3s ease;display:none}
+#loading-bar.show{display:block}
+
+#toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:rgba(28,27,31,0.9);color:#fff;padding:8px 18px;border-radius:20px;font-size:12px;z-index:600;opacity:0;transition:opacity 0.2s;pointer-events:none;white-space:nowrap}
+#toast.show{opacity:1}
+
+.empty-msg{padding:40px 20px;text-align:center;color:#9C9890;font-size:13px;line-height:1.8}
+.empty-msg .em-icon{font-size:32px;margin-bottom:10px}
+
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#D8D5D0;border-radius:2px}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="logo-wrap">
+    <div class="logo-mark">실</div>
+    <div class="logo-txt"><span>실거래가</span> 지도</div>
+  </div>
+  <div class="search-box">
+    <span style="color:rgba(255,255,255,0.4)">🔍</span>
+    <input type="text" id="addr-input" placeholder="주소, 단지명, 동 이름으로 검색" autocomplete="off">
+  </div>
+  <button class="btn-go" onclick="doSearch()">검색</button>
+  <div class="type-filter">
+    <button class="tf-btn active" data-type="아파트" data-code="아파트" onclick="setType(this)">🏢 아파트</button>
+    <button class="tf-btn" data-type="연립다세대" data-code="연립다세대" onclick="setType(this)">🏘 연립다세대</button>
+    <button class="tf-btn" data-type="단독주택" data-code="단독주택" onclick="setType(this)">🏠 단독주택</button>
+  </div>
+  <div class="period-filter">
+    <button class="pf-btn active" data-m="1" onclick="setPeriod(this)">이번달</button>
+    <button class="pf-btn" data-m="3" onclick="setPeriod(this)">3개월</button>
+    <button class="pf-btn" data-m="6" onclick="setPeriod(this)">6개월</button>
+  </div>
+</div>
+
+<div id="map"></div>
+<div id="loading-bar"></div>
+
+<div id="sidebar">
+  <div class="sidebar-head">
+    <div>
+      <div class="sidebar-name" id="sidebar-title">거래 내역</div>
+      <div class="sidebar-sub" id="sidebar-sub">마커를 클릭하면 거래 정보가 표시됩니다</div>
+    </div>
+    <button class="btn-close" onclick="closeSidebar()">✕</button>
+  </div>
+  <div class="sidebar-tabs">
+    <button class="stab active" id="stab-btn-list" onclick="switchSTab('list')">거래 목록</button>
+    <button class="stab" id="stab-btn-detail" onclick="switchSTab('detail')">상세 정보</button>
+  </div>
+  <div class="sidebar-body">
+    <div id="stab-list" class="deal-list"></div>
+    <div id="stab-detail" style="padding:16px;display:none"></div>
+  </div>
+</div>
+
+<div id="legend">
+  <div class="leg-row"><div class="leg-dot" style="background:#E03131"></div>아파트</div>
+  <div class="leg-row"><div class="leg-dot" style="background:#1A6FC8"></div>연립다세대</div>
+  <div class="leg-row"><div class="leg-dot" style="background:#2E7D52"></div>단독주택</div>
+</div>
+
+<div id="zoom-hint">🔍 더 가까이 확대하면 실거래가가 표시됩니다</div>
+
+<div id="summary-bar">
+  <div class="s-title" id="s-label">아파트 실거래가</div>
+  <div class="s-avg" id="s-avg">—</div>
+  <div class="s-range" id="s-range">지도를 이동하면 조회됩니다</div>
+  <div class="s-count" id="s-count"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── API KEYS ──
+const KAKAO_KEY  = '95756e912755075d82b76293236e5d62';
+const DATA_KEY   = encodeURIComponent('1663a4f5c3368fe94f697bff84addf607e842786fb88a527d12f5ff1c6b00d4b');
+
+// ── API 서비스 ID (국토부 실거래가) ──
+// 아파트매매: 15058747  연립다세대: 15058038  단독/다가구: 15058701
+const API_IDS = {
+  '아파트':    { id:'15058747', svc:'getRTMSDataSvcAptTradeDev' },
+  '연립다세대': { id:'15058038', svc:'getRTMSDataSvcRHTrade' },
+  '단독주택':  { id:'15058701', svc:'getRTMSDataSvcSHTrade' },
+};
+
+// ── STATE ──
+let map = null, geocoder = null;
+let currentType = '아파트';
+let currentMonths = 1;
+let bubbles = [];
+let selectedDeal = null;
+let sidebarOpen = false;
+let fetchTimer = null;
+let cachedDeals = {};   // key: "type_yyyyMM_lawdCd"
+
+// ── UTILS ──
+function fmtPrice(만원) {
+  만원 = parseInt(만원.toString().replace(/,/g,'')) || 0;
+  if (만원 >= 10000) {
+    const 억 = Math.floor(만원 / 10000);
+    const 나머지 = 만원 % 10000;
+    return 나머지 > 0 ? `${억}억 ${나머지.toLocaleString()}만` : `${억}억`;
+  }
+  return `${만원.toLocaleString()}만`;
+}
+
+function getYearMonths(count) {
+  const months = [];
+  const now = new Date();
+  for (let i = 0; i < count; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    months.push(`${y}${m}`);
+  }
+  return months;
+}
+
+function setLoading(on) {
+  const bar = document.getElementById('loading-bar');
+  if (on) {
+    bar.style.display = 'block';
+    bar.style.transform = 'scaleX(0.7)';
+  } else {
+    bar.style.transform = 'scaleX(1)';
+    setTimeout(() => { bar.style.display = 'none'; bar.style.transform = 'scaleX(0)'; }, 300);
+  }
+}
+
+function showToast(msg, ms = 2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), ms);
+}
+
+// ── MAP INIT ──
+function initMap() {
+  const container = document.getElementById('map');
+  const options = {
+    center: new kakao.maps.LatLng(37.5326, 127.0246),
+    level: 6
+  };
+  map = new kakao.maps.Map(container, options);
+  geocoder = new kakao.maps.services.Geocoder();
+
+  kakao.maps.event.addListener(map, 'zoom_changed', onMapChange);
+  kakao.maps.event.addListener(map, 'dragend', onMapChange);
+
+  onMapChange();
+}
+
+function onMapChange() {
+  const lv = map.getLevel();
+  if (lv > 7) {
+    document.getElementById('zoom-hint').classList.add('show');
+    clearBubbles();
+    return;
+  }
+  document.getElementById('zoom-hint').classList.remove('show');
+  clearTimeout(fetchTimer);
+  fetchTimer = setTimeout(fetchDeals, 400);
+}
+
+// ── FETCH REAL DATA ──
+async function fetchDeals() {
+  const center = map.getCenter();
+  const lat = center.getLat();
+  const lng = center.getLng();
+
+  // 중심 좌표 → 법정동 코드 (카카오 좌표→주소 변환)
+  geocoder.coord2RegionCode(lng, lat, async function(result, status) {
+    if (status !== kakao.maps.services.Status.OK) return;
+
+    const region = result.find(r => r.region_type === 'B');
+    if (!region) return;
+
+    const lawdCd = region.code.substring(0, 5); // 시군구 코드 5자리
+    const regionName = region.address_name;
+
+    document.getElementById('sidebar-sub').textContent = regionName + ' 기준';
+
+    const months = getYearMonths(currentMonths);
+    let allDeals = [];
+
+    setLoading(true);
+    try {
+      for (const yyyyMM of months) {
+        const cacheKey = `${currentType}_${yyyyMM}_${lawdCd}`;
+        if (cachedDeals[cacheKey]) {
+          allDeals = allDeals.concat(cachedDeals[cacheKey]);
+          continue;
+        }
+
+        const info = API_IDS[currentType];
+        const url = `https://apis.data.go.kr/1613000/${info.svc}?serviceKey=${DATA_KEY}&pageNo=1&numOfRows=100&LAWD_CD=${lawdCd}&DEAL_YMD=${yyyyMM}`;
+
+        const res = await fetch(url);
+        const text = await res.text();
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(text, 'text/xml');
+
+        const items = xml.querySelectorAll('item');
+        const parsed = [];
+
+        items.forEach(item => {
+          const get = tag => {
+            const el = item.querySelector(tag);
+            return el ? el.textContent.trim() : '';
+          };
+
+          // 아파트
+          if (currentType === '아파트') {
+            parsed.push({
+              name: get('aptNm') || get('아파트'),
+              price: get('dealAmount') || get('거래금액'),
+              area: get('excluUseAr') || get('전용면적'),
+              floor: (get('floor') || get('층')) + '층',
+              date: `${get('dealYear') || get('년')}.${String(get('dealMonth') || get('월')).padStart(2,'0')}.${String(get('dealDay') || get('일')).padStart(2,'0')}`,
+              jibun: get('jibun') || get('지번'),
+              umdNm: get('umdNm') || get('법정동'),
+              lawdCd, regionName,
+              type: currentType,
+            });
+          } else if (currentType === '연립다세대') {
+            parsed.push({
+              name: get('mhouseNm') || get('연립다세대'),
+              price: get('dealAmount') || get('거래금액'),
+              area: get('excluUseAr') || get('전용면적'),
+              floor: (get('floor') || get('층')) + '층',
+              date: `${get('dealYear')||get('년')}.${String(get('dealMonth')||get('월')).padStart(2,'0')}`,
+              jibun: get('jibun') || get('지번'),
+              umdNm: get('umdNm') || get('법정동'),
+              lawdCd, regionName, type: currentType,
+            });
+          } else {
+            parsed.push({
+              name: get('houseType') || '단독/다가구',
+              price: get('dealAmount') || get('거래금액'),
+              area: get('totalFloorAr') || get('연면적'),
+              floor: '-',
+              date: `${get('dealYear')||get('년')}.${String(get('dealMonth')||get('월')).padStart(2,'0')}`,
+              jibun: get('jibun') || get('지번'),
+              umdNm: get('umdNm') || get('법정동'),
+              lawdCd, regionName, type: currentType,
+            });
+          }
+        });
+
+        cachedDeals[cacheKey] = parsed;
+        allDeals = allDeals.concat(parsed);
+      }
+
+      setLoading(false);
+
+      if (allDeals.length === 0) {
+        showToast('이 지역 거래 데이터가 없습니다. 다른 지역을 확인해보세요');
+        updateSummary([]);
+        return;
+      }
+
+      showToast(`📍 ${regionName} — ${allDeals.length}건 거래 로드 완료`);
+      renderBubbles(allDeals, lat, lng);
+      updateSummary(allDeals);
+      if (sidebarOpen) buildDealList(allDeals);
+
+    } catch(e) {
+      setLoading(false);
+      console.error(e);
+      showToast('데이터 로드 중 오류가 발생했습니다');
+    }
+  });
+}
+
+// ── GEOCODE DEALS → BUBBLES ──
+async function renderBubbles(deals, centerLat, centerLng) {
+  clearBubbles();
+
+  // 동별로 그룹핑해서 대표 버블 표시 (너무 많으면 지도가 지저분해짐)
+  const byDong = {};
+  deals.forEach(d => {
+    const key = d.umdNm || '기타';
+    if (!byDong[key]) byDong[key] = [];
+    byDong[key].push(d);
+  });
+
+  for (const [dong, dongDeals] of Object.entries(byDong)) {
+    const avgPrice = Math.round(dongDeals.reduce((s, d) => {
+      return s + parseInt((d.price || '0').replace(/,/g,''));
+    }, 0) / dongDeals.length);
+
+    // 동 이름으로 좌표 변환
+    const addr = dongDeals[0].regionName.split(' ').slice(0,2).join(' ') + ' ' + dong;
+    await new Promise(resolve => {
+      geocoder.addressSearch(addr, function(result, status) {
+        if (status === kakao.maps.services.Status.OK) {
+          const pos = new kakao.maps.LatLng(result[0].y, result[0].x);
+          createBubble(pos, avgPrice, dong, dongDeals);
+        }
+        resolve();
+      });
+    });
+  }
+}
+
+function createBubble(pos, avgPrice, dong, deals) {
+  const typeClass = currentType === '연립다세대' ? 'type-연립' : currentType === '단독주택' ? 'type-단독' : '';
+  const overlay = new kakao.maps.CustomOverlay({ position: pos, yAnchor: 1.3, zIndex: 3 });
+  const el = document.createElement('div');
+  el.className = `price-bubble ${typeClass}`;
+  el.innerHTML = `${fmtPrice(avgPrice)}<div class="bubble-tail"></div>`;
+  el.title = dong + ' ' + deals.length + '건';
+  el.addEventListener('click', () => {
+    bubbles.forEach(b => b.el.classList.remove('selected'));
+    el.classList.add('selected');
+    openSidebar(dong, deals);
+  });
+  overlay.setContent(el);
+  overlay.setMap(map);
+  bubbles.push({ overlay, el });
+}
+
+function clearBubbles() {
+  bubbles.forEach(b => b.overlay.setMap(null));
+  bubbles = [];
+}
+
+// ── SIDEBAR ──
+function openSidebar(dong, deals) {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebar-title').textContent = dong + ' 실거래';
+  document.getElementById('sidebar-sub').textContent = currentType + ' · ' + deals.length + '건';
+  sidebarOpen = true;
+  buildDealList(deals);
+  switchSTab('list');
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  sidebarOpen = false;
+  bubbles.forEach(b => b.el.classList.remove('selected'));
+}
+
+function buildDealList(deals) {
+  const sorted = [...deals].sort((a,b) => {
+    const pa = parseInt((a.price||'0').replace(/,/g,''));
+    const pb = parseInt((b.price||'0').replace(/,/g,''));
+    return pb - pa;
+  });
+
+  const el = document.getElementById('stab-list');
+  if (sorted.length === 0) {
+    el.innerHTML = `<div class="empty-msg"><div class="em-icon">🏠</div>이 지역의 거래 내역이 없습니다</div>`;
+    return;
+  }
+
+  el.innerHTML = sorted.map((d, i) => {
+    const price = parseInt((d.price||'0').replace(/,/g,''));
+    return `<div class="deal-item" onclick="showDetail(${i}, ${JSON.stringify(sorted).replace(/"/g,"'")})">
+      <div class="deal-row1">
+        <div class="deal-name">${d.name || '(건물명 없음)'}</div>
+        <div class="deal-price">${fmtPrice(price)}</div>
+      </div>
+      <div class="deal-row2">
+        <span class="deal-area">${parseFloat(d.area||0).toFixed(1)}㎡ · ${d.floor}</span>
+        <span class="deal-date">${d.date}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showDetail(idx, dealsJson) {
+  const deals = typeof dealsJson === 'string' ? JSON.parse(dealsJson.replace(/'/g,'"')) : dealsJson;
+  const d = deals[idx];
+  const price = parseInt((d.price||'0').replace(/,/g,''));
+
+  const el = document.getElementById('stab-detail');
+  el.innerHTML = `
+    <button class="btn-back" onclick="switchSTab('list')">← 목록으로</button>
+    <div class="detail-price-big">${fmtPrice(price)}</div>
+    <div class="detail-name">${d.name || '(건물명 없음)'}</div>
+    <div class="detail-grid">
+      <div class="detail-cell"><div class="detail-cell-label">전용면적</div><div class="detail-cell-val">${parseFloat(d.area||0).toFixed(1)}㎡</div></div>
+      <div class="detail-cell"><div class="detail-cell-label">층수</div><div class="detail-cell-val">${d.floor}</div></div>
+      <div class="detail-cell"><div class="detail-cell-label">거래일</div><div class="detail-cell-val">${d.date}</div></div>
+      <div class="detail-cell"><div class="detail-cell-label">법정동</div><div class="detail-cell-val">${d.umdNm||'—'}</div></div>
+      <div class="detail-cell"><div class="detail-cell-label">지번</div><div class="detail-cell-val">${d.jibun||'—'}</div></div>
+      <div class="detail-cell"><div class="detail-cell-label">유형</div><div class="detail-cell-val">${d.type}</div></div>
+    </div>
+    <div style="padding:10px;background:#FDF1EE;border-radius:8px;font-size:12px;color:#7A3030;line-height:1.7">
+      📌 실제 국토교통부 신고 데이터입니다.<br>투자 결정 전 반드시 전문가 상담을 받으세요.
+    </div>
+  `;
+  switchSTab('detail');
+}
+
+function switchSTab(name) {
+  document.getElementById('stab-btn-list').classList.toggle('active', name==='list');
+  document.getElementById('stab-btn-detail').classList.toggle('active', name==='detail');
+  document.getElementById('stab-list').style.display = name==='list' ? 'flex' : 'none';
+  document.getElementById('stab-list').style.flexDirection = 'column';
+  document.getElementById('stab-detail').style.display = name==='detail' ? 'block' : 'none';
+}
+
+// ── SUMMARY ──
+function updateSummary(deals) {
+  const prices = deals.map(d => parseInt((d.price||'0').replace(/,/g,''))).filter(p => p > 0);
+  document.getElementById('s-label').textContent = currentType + ' 실거래가';
+  if (prices.length === 0) {
+    document.getElementById('s-avg').textContent = '—';
+    document.getElementById('s-range').textContent = '데이터 없음';
+    document.getElementById('s-count').textContent = '';
+    return;
+  }
+  const avg = Math.round(prices.reduce((a,b)=>a+b,0)/prices.length);
+  const min = Math.min(...prices), max = Math.max(...prices);
+  document.getElementById('s-avg').textContent = fmtPrice(avg);
+  document.getElementById('s-range').textContent = `${fmtPrice(min)} ~ ${fmtPrice(max)}`;
+  document.getElementById('s-count').textContent = `총 ${prices.length}건`;
+}
+
+// ── FILTERS ──
+function setType(btn) {
+  document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentType = btn.dataset.type;
+  cachedDeals = {};
+  clearBubbles();
+  if (sidebarOpen) closeSidebar();
+  onMapChange();
+  showToast(currentType + ' 실거래가로 전환했습니다');
+}
+
+function setPeriod(btn) {
+  document.querySelectorAll('.pf-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentMonths = parseInt(btn.dataset.m);
+  cachedDeals = {};
+  clearBubbles();
+  onMapChange();
+  showToast(`최근 ${currentMonths}개월 거래로 변경했습니다`);
+}
+
+// ── SEARCH ──
+function doSearch() {
+  const q = document.getElementById('addr-input').value.trim();
+  if (!q) return;
+  geocoder.addressSearch(q, function(result, status) {
+    if (status === kakao.maps.services.Status.OK) {
+      const coords = new kakao.maps.LatLng(result[0].y, result[0].x);
+      map.setCenter(coords);
+      map.setLevel(5);
+      onMapChange();
+      showToast('📍 ' + result[0].address_name + ' 으로 이동');
+    } else {
+      showToast('주소를 찾을 수 없습니다');
+    }
+  });
+}
+
+document.getElementById('addr-input').addEventListener('keydown', e => { if(e.key==='Enter') doSearch(); });
+</script>
+
+<!-- 카카오맵 SDK 로드 -->
+<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=95756e912755075d82b76293236e5d62&libraries=services&autoload=false"></script>
+<script>
+kakao.maps.load(initMap);
+</script>
+</body>
+</html>
