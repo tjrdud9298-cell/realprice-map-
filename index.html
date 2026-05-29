@@ -197,6 +197,17 @@ html,body{width:100%;height:100%;font-family:'Noto Sans KR',sans-serif;overflow:
 #toast{position:fixed;top:100px;left:50%;transform:translateX(-50%);background:rgba(28,27,31,0.92);color:#fff;padding:8px 18px;border-radius:20px;font-size:12px;z-index:700;opacity:0;transition:opacity 0.2s;pointer-events:none;white-space:nowrap}
 #toast.show{opacity:1}
 
+.jeonse-mode #jeonse-mode-btn{background:rgba(255,165,0,0.15);border-color:orange;color:orange}
+.bubble-safe{background:#2E7D52!important;box-shadow:0 2px 8px rgba(46,125,82,0.5)!important}
+.bubble-warn{background:#C97B1A!important;box-shadow:0 2px 8px rgba(201,123,26,0.5)!important}
+.bubble-danger{background:#D94040!important;box-shadow:0 2px 8px rgba(217,64,64,0.5)!important}
+.bubble-safe .bubble-tail{border-top-color:#2E7D52!important}
+.bubble-warn .bubble-tail{border-top-color:#C97B1A!important}
+.bubble-danger .bubble-tail{border-top-color:#D94040!important}
+.jeonse-info-bar{position:fixed;top:88px;left:50%;transform:translateX(-50%);background:rgba(28,27,31,0.92);color:#fff;padding:8px 20px;border-radius:20px;font-size:12px;z-index:450;display:none;gap:16px;align-items:center;backdrop-filter:blur(8px)}
+.jeonse-info-bar.show{display:flex}
+.ji-item{display:flex;align-items:center;gap:6px}
+.ji-dot{width:10px;height:10px;border-radius:50%;border:1.5px solid rgba(255,255,255,0.5)}
 ::-webkit-scrollbar{width:4px}
 ::-webkit-scrollbar-thumb{background:#D8D5D0;border-radius:2px}
 </style>
@@ -274,6 +285,12 @@ html,body{width:100%;height:100%;font-family:'Noto Sans KR',sans-serif;overflow:
 </div>
 
 <div id="map"></div>
+<div class="jeonse-info-bar" id="jeonse-info-bar">
+  <span style="font-weight:700;color:orange">📊 전세가율 분석 모드</span>
+  <div class="ji-item"><div class="ji-dot" style="background:#2E7D52"></div>안전 (60% 미만)</div>
+  <div class="ji-item"><div class="ji-dot" style="background:#C97B1A"></div>주의 (60~80%)</div>
+  <div class="ji-item"><div class="ji-dot" style="background:#D94040"></div>위험 (80% 이상)</div>
+</div>
 <div id="loading-bar"></div>
 
 <!-- 사이드바 -->
@@ -467,6 +484,8 @@ const SIDO_CENTER = {
 // ── STATE ──
 let map = null, geocoder = null;
 let currentType = '아파트';
+let jeonseMode = false;
+let jeonseCacheRent = {};
 let currentMonths = 1;
 let bubbles = [];
 let sidebarOpen = false;
@@ -587,6 +606,11 @@ async function fetchByLawdCd(lawdCd, regionName) {
     '연립다세대': 'RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade',
     '단독주택':  'RTMSDataSvcSHTrade/getRTMSDataSvcSHTrade',
   };
+  const RENT_API_MAP = {
+    '아파트':    'RTMSDataSvcAptRent/getRTMSDataSvcAptRent',
+    '연립다세대': 'RTMSDataSvcRHRent/getRTMSDataSvcRHRent',
+    '단독주택':  'RTMSDataSvcSHRent/getRTMSDataSvcSHRent',
+  };
   const svc = API_MAP[currentType];
 
   setLoading(true);
@@ -655,10 +679,48 @@ async function fetchByLawdCd(lawdCd, regionName) {
 
     setStatus(`${regionName} · ${allDeals.length}건 로드`);
     showToast(`📍 ${regionName} ${currentType} ${allDeals.length}건 조회 완료`);
-    renderBubbles(allDeals);
-    updateSummary(allDeals);
-    buildDealList(allDeals);
-    openSidebar(regionName, allDeals);
+
+    // 전세가율 모드: 전세 데이터도 추가 로드
+    let rentDeals = [];
+    if (jeonseMode) {
+      const rentSvc = RENT_API_MAP[currentType];
+      if (rentSvc) {
+        try {
+          setStatus('전세 데이터 로드 중...');
+          for (const yyyyMM of months) {
+            const rkey = `rent_${currentType}_${yyyyMM}_${lawdCd}`;
+            if (jeonseCacheRent[rkey]) { rentDeals = rentDeals.concat(jeonseCacheRent[rkey]); continue; }
+            const rurl = `/api/proxy?url=${encodeURIComponent(`https://apis.data.go.kr/1613000/${rentSvc}?serviceKey=${DATA_KEY}&pageNo=1&numOfRows=200&LAWD_CD=${lawdCd}&DEAL_YMD=${yyyyMM}`)}`;
+            const rres = await fetch(rurl);
+            const rtext = await rres.text();
+            const rxml = new DOMParser().parseFromString(rtext, 'text/xml');
+            const ritems = rxml.querySelectorAll('item');
+            const rparsed = [];
+            ritems.forEach(item => {
+              const g = tag => { const el = item.querySelector(tag); return el ? el.textContent.trim() : ''; };
+              const deposit = parseInt((g('deposit')||g('보증금액')||'0').replace(/,/g,'')) || 0;
+              const monthlyRent = parseInt((g('monthlyRent')||g('월세금액')||'0').replace(/,/g,'')) || 0;
+              // 전세만 (월세 0인 것)
+              if (monthlyRent > 0) return;
+              rparsed.push({
+                name: g('aptNm')||g('mhouseNm')||'',
+                deposit, umdNm: g('umdNm')||g('법정동'),
+                area: parseFloat(g('excluUseAr')||'0')||0,
+              });
+            });
+            jeonseCacheRent[rkey] = rparsed;
+            rentDeals = rentDeals.concat(rparsed);
+          }
+          setStatus(`${regionName} · 매매 ${allDeals.length}건 + 전세 ${rentDeals.length}건`);
+          showToast(`📊 전세가율 분석: 매매 ${allDeals.length}건 / 전세 ${rentDeals.length}건`);
+        } catch(e) { console.error('전세 API 오류:', e); }
+      }
+    }
+
+    renderBubbles(allDeals, rentDeals);
+    updateSummary(allDeals, rentDeals);
+    buildDealList(allDeals, rentDeals);
+    openSidebar(regionName, allDeals, rentDeals);
 
   } catch(e) {
     setLoading(false);
@@ -669,7 +731,7 @@ async function fetchByLawdCd(lawdCd, regionName) {
 }
 
 // ── BUBBLES ──
-async function renderBubbles(deals) {
+async function renderBubbles(deals, rentDeals) {
   clearBubbles();
   const byDong = {};
   deals.forEach(d => {
@@ -681,10 +743,20 @@ async function renderBubbles(deals) {
   for (const [dong, list] of Object.entries(byDong)) {
     const avg = Math.round(list.reduce((s,d)=>s+d.price,0)/list.length);
     const addr = (list[0].regionName||'').split(' ').slice(0,2).join(' ') + ' ' + dong;
+    // 전세가율 계산
+    let jeonseRatio = null;
+    if (jeonseMode && rentDeals && rentDeals.length > 0) {
+      // 같은 동 전세 데이터
+      const dongRent = rentDeals.filter(r => (r.umdNm||'') === dong && r.deposit > 0);
+      if (dongRent.length > 0) {
+        const avgRent = Math.round(dongRent.reduce((s,r)=>s+r.deposit,0)/dongRent.length);
+        if (avg > 0) jeonseRatio = (avgRent / avg) * 100;
+      }
+    }
     await new Promise(resolve => {
       geocoder.addressSearch(addr, (result, status) => {
         if (status === kakao.maps.services.Status.OK) {
-          createBubble(new kakao.maps.LatLng(result[0].y, result[0].x), avg, dong, list);
+          createBubble(new kakao.maps.LatLng(result[0].y, result[0].x), avg, dong, list, jeonseRatio);
         }
         resolve();
       });
@@ -692,12 +764,23 @@ async function renderBubbles(deals) {
   }
 }
 
-function createBubble(pos, avg, dong, deals) {
-  const tc = currentType==='연립다세대'?'type-연립':currentType==='단독주택'?'type-단독':'';
+function createBubble(pos, avg, dong, deals, jeonseRatio) {
+  let tc = currentType==='연립다세대'?'type-연립':currentType==='단독주택'?'type-단독':'';
+  // 전세가율 모드면 위험도로 색상 덮어쓰기
+  let riskClass = '';
+  if (jeonseMode && jeonseRatio !== null && jeonseRatio !== undefined) {
+    if (jeonseRatio >= 80) riskClass = 'bubble-danger';
+    else if (jeonseRatio >= 60) riskClass = 'bubble-warn';
+    else riskClass = 'bubble-safe';
+    tc = '';
+  }
   const ov = new kakao.maps.CustomOverlay({position:pos, yAnchor:1.3, zIndex:3});
   const el = document.createElement('div');
-  el.className = `price-bubble ${tc}`;
-  el.innerHTML = `${fmtPrice(avg)}<div class="bubble-tail"></div>`;
+  el.className = `price-bubble ${tc} ${riskClass}`.trim();
+  const label = jeonseMode && jeonseRatio !== null
+    ? `${jeonseRatio.toFixed(0)}%`
+    : fmtPrice(avg);
+  el.innerHTML = `${label}<div class="bubble-tail"></div>`;
   el.addEventListener('click', () => {
     bubbles.forEach(b=>b.el.classList.remove('selected'));
     el.classList.add('selected');
@@ -714,9 +797,13 @@ function clearBubbles() {
 }
 
 // ── SIDEBAR ──
-function openSidebar(title, deals) {
+function openSidebar(title, deals, rentDeals) {
   document.getElementById('sidebar-title').textContent = title;
-  document.getElementById('sidebar-sub').textContent = currentType + ' · ' + deals.length + '건';
+  let sub = currentType + ' · ' + deals.length + '건';
+  if (jeonseMode && rentDeals && rentDeals.length > 0) {
+    sub += ' | 전세 ' + rentDeals.length + '건';
+  }
+  document.getElementById('sidebar-sub').textContent = sub;
   document.getElementById('sidebar').classList.add('open');
   sidebarOpen = true;
   switchSTab('list');
@@ -736,7 +823,7 @@ function switchSTab(name) {
   d.style.display = name==='detail' ? 'block' : 'none';
 }
 
-function buildDealList(deals) {
+function buildDealList(deals, rentDeals) {
   const sorted = [...deals].sort((a,b)=>b.price-a.price);
   const el = document.getElementById('stab-list');
   if (!sorted.length) {
@@ -756,7 +843,7 @@ function buildDealList(deals) {
     </div>`).join('');
 }
 
-function showDetail(idx, raw) {
+function showDetail(idx, raw, rentRaw) {
   const deals = typeof raw==='string' ? JSON.parse(raw.replace(/'/g,'"')) : raw;
   const d = deals[idx];
   document.getElementById('stab-detail').innerHTML = `
@@ -778,8 +865,24 @@ function showDetail(idx, raw) {
 }
 
 // ── SUMMARY ──
-function updateSummary(deals) {
+function updateSummary(deals, rentDeals) {
   const prices = deals.map(d=>d.price).filter(p=>p>0);
+  if (jeonseMode && rentDeals && rentDeals.length > 0 && prices.length > 0) {
+    const avgSale = Math.round(prices.reduce((a,b)=>a+b,0)/prices.length);
+    const rentPrices = rentDeals.map(r=>r.deposit).filter(p=>p>0);
+    if (rentPrices.length > 0) {
+      const avgRent = Math.round(rentPrices.reduce((a,b)=>a+b,0)/rentPrices.length);
+      const ratio = (avgRent/avgSale*100).toFixed(1);
+      const rc = ratio >= 80 ? '#D94040' : ratio >= 60 ? '#C97B1A' : '#2E7D52';
+      document.getElementById('s-label').textContent = '전세가율 (동 평균)';
+      document.getElementById('s-avg').style.color = rc;
+      document.getElementById('s-avg').textContent = ratio + '%';
+      document.getElementById('s-range').textContent = `매매 ${fmtPrice(avgSale)} / 전세 ${fmtPrice(avgRent)}`;
+      document.getElementById('s-count').textContent = `매매 ${prices.length}건 · 전세 ${rentPrices.length}건`;
+      return;
+    }
+  }
+  document.getElementById('s-avg').style.color = '#fff';
   document.getElementById('s-label').textContent = currentType + ' 실거래가';
   if (!prices.length) {
     document.getElementById('s-avg').textContent='—';
@@ -794,6 +897,26 @@ function updateSummary(deals) {
 }
 
 // ── FILTERS ──
+function toggleJeonseMode() {
+  jeonseMode = !jeonseMode;
+  document.getElementById('map').classList.toggle('jeonse-mode-active', jeonseMode);
+  document.body.classList.toggle('jeonse-mode', jeonseMode);
+  document.getElementById('jeonse-info-bar').classList.toggle('show', jeonseMode);
+  const btn = document.getElementById('jeonse-mode-btn');
+  btn.style.background = jeonseMode ? 'rgba(255,165,0,0.15)' : 'transparent';
+  btn.style.borderColor = jeonseMode ? 'orange' : 'rgba(255,165,0,0.5)';
+  btn.style.color = jeonseMode ? 'orange' : 'rgba(255,165,0,0.8)';
+  btn.textContent = jeonseMode ? '✅ 전세가율 ON' : '📊 전세가율 분석';
+  jeonseCacheRent = {};
+  cache = {};
+  clearBubbles();
+  if (currentLawdCd) {
+    const regionName = document.getElementById('current-region-badge').textContent;
+    fetchByLawdCd(currentLawdCd, regionName);
+  }
+  showToast(jeonseMode ? '📊 전세가율 분석 모드 ON — 동별 전세가율을 표시합니다' : '전세가율 모드 OFF');
+}
+
 function setType(btn) {
   document.querySelectorAll('.tf-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
