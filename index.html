@@ -583,9 +583,9 @@ function goToRegion() {
 async function fetchByLawdCd(lawdCd, regionName) {
   const months = getMonths(currentMonths);
   const API_MAP = {
-    '아파트':    'getRTMSDataSvcAptTrade',
-    '연립다세대': 'getRTMSDataSvcRHTrade',
-    '단독주택':  'getRTMSDataSvcSHTrade',
+    '아파트':    'RTMSDataSvcAptTrade/getRTMSDataSvcAptTrade',
+    '연립다세대': 'RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade',
+    '단독주택':  'RTMSDataSvcSHTrade/getRTMSDataSvcSHTrade',
   };
   const svc = API_MAP[currentType];
 
@@ -864,9 +864,9 @@ function doSearch() {
         // 국토부 API 호출
         const months = getMonths(currentMonths);
         const API_MAP = {
-          '아파트':    'getRTMSDataSvcAptTrade',
-          '연립다세대': 'getRTMSDataSvcRHTrade',
-          '단독주택':  'getRTMSDataSvcSHTrade',
+          '아파트':    'RTMSDataSvcAptTrade/getRTMSDataSvcAptTrade',
+          '연립다세대': 'RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade',
+          '단독주택':  'RTMSDataSvcSHTrade/getRTMSDataSvcSHTrade',
         };
         const svc = API_MAP[currentType];
         let allDeals = [];
