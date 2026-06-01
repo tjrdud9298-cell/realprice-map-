@@ -60,8 +60,8 @@ html,body{width:100%;height:100%;font-family:'Noto Sans KR',sans-serif;overflow:
 .divider{width:1px;height:24px;background:rgba(255,255,255,0.1);flex-shrink:0}
 
 /* 주소 검색 */
+.search-wrap{position:relative;flex:1;max-width:260px}
 .search-box{
-  flex:1;max-width:260px;
   display:flex;align-items:center;
   background:rgba(255,255,255,0.07);
   border:1px solid rgba(255,255,255,0.12);
@@ -78,6 +78,23 @@ html,body{width:100%;height:100%;font-family:'Noto Sans KR',sans-serif;overflow:
   font-size:12px;cursor:pointer;white-space:nowrap;
 }
 .btn-go:hover{background:rgba(255,255,255,0.18)}
+
+/* 자동완성 드롭다운 */
+#search-suggestions{
+  position:absolute;top:calc(100% + 4px);left:0;right:0;
+  background:#2A2930;border:1px solid rgba(255,255,255,0.15);
+  border-radius:8px;z-index:600;max-height:260px;overflow-y:auto;
+  box-shadow:0 6px 20px rgba(0,0,0,0.5);display:none;
+}
+.sug-item{
+  padding:9px 12px;cursor:pointer;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+  transition:background 0.1s;
+}
+.sug-item:last-child{border-bottom:none}
+.sug-item:hover,.sug-item.focused{background:rgba(255,255,255,0.09)}
+.sug-name{font-size:12px;font-weight:500;color:#fff}
+.sug-addr{font-size:11px;color:rgba(255,255,255,0.38);margin-top:2px}
 
 /* 타입 필터 */
 .type-filter{display:flex;gap:4px;margin-left:auto;flex-shrink:0}
@@ -263,10 +280,13 @@ html,body{width:100%;height:100%;font-family:'Noto Sans KR',sans-serif;overflow:
     <div class="divider"></div>
 
     <!-- 주소 직접 검색 -->
-    <div class="search-box">
-      <span style="color:rgba(255,255,255,0.35);font-size:13px">🔍</span>
-      <input type="text" id="addr-input" placeholder="단지명, 동 이름 직접 검색" autocomplete="off">
-      <button class="btn-go" onclick="doSearch()">검색</button>
+    <div class="search-wrap">
+      <div class="search-box">
+        <span style="color:rgba(255,255,255,0.35);font-size:13px">🔍</span>
+        <input type="text" id="addr-input" placeholder="단지명, 동 이름 직접 검색" autocomplete="off">
+        <button class="btn-go" onclick="doSearch()">검색</button>
+      </div>
+      <div id="search-suggestions"></div>
     </div>
 
     <!-- 유형 필터 -->
@@ -540,6 +560,7 @@ function initMap() {
   geocoder = new kakao.maps.services.Geocoder();
   kakao.maps.event.addListener(map, 'zoom_changed', onMapChange);
   kakao.maps.event.addListener(map, 'dragend', onMapChange);
+  initSuggest();
 }
 
 function onMapChange() {
@@ -1133,7 +1154,85 @@ function doSearch() {
     }
   }, { category_group_code: '' });
 }
-document.getElementById('addr-input').addEventListener('keydown', e=>{if(e.key==='Enter')doSearch();});
+// ── 자동완성 ──
+let suggestTimer = null;
+let suggestPs = null;
+let suggestFocusIdx = -1;
+
+function initSuggest() {
+  suggestPs = new kakao.maps.services.Places();
+  const input = document.getElementById('addr-input');
+  const dropdown = document.getElementById('search-suggestions');
+
+  input.addEventListener('input', () => {
+    clearTimeout(suggestTimer);
+    suggestFocusIdx = -1;
+    const q = input.value.trim();
+    if (q.length < 2) { hideSuggestions(); return; }
+    suggestTimer = setTimeout(() => fetchSuggestions(q), 280);
+  });
+
+  input.addEventListener('keydown', e => {
+    const items = dropdown.querySelectorAll('.sug-item');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      suggestFocusIdx = Math.min(suggestFocusIdx + 1, items.length - 1);
+      updateFocus(items);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      suggestFocusIdx = Math.max(suggestFocusIdx - 1, -1);
+      updateFocus(items);
+    } else if (e.key === 'Enter') {
+      if (suggestFocusIdx >= 0 && items[suggestFocusIdx]) {
+        items[suggestFocusIdx].click();
+      } else {
+        hideSuggestions();
+        doSearch();
+      }
+    } else if (e.key === 'Escape') {
+      hideSuggestions();
+    }
+  });
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.search-wrap')) hideSuggestions();
+  });
+}
+
+function updateFocus(items) {
+  items.forEach((el, i) => el.classList.toggle('focused', i === suggestFocusIdx));
+}
+
+function fetchSuggestions(q) {
+  suggestPs.keywordSearch(q, (result, status) => {
+    const dropdown = document.getElementById('search-suggestions');
+    if (status !== kakao.maps.services.Status.OK || !result.length) {
+      hideSuggestions(); return;
+    }
+    const items = result.slice(0, 8);
+    dropdown.innerHTML = items.map((place, i) => `
+      <div class="sug-item" data-idx="${i}">
+        <div class="sug-name">${place.place_name}</div>
+        <div class="sug-addr">${place.road_address_name || place.address_name}</div>
+      </div>
+    `).join('');
+    dropdown.querySelectorAll('.sug-item').forEach((el, i) => {
+      el.addEventListener('mousedown', e => {
+        e.preventDefault();
+        document.getElementById('addr-input').value = items[i].place_name;
+        hideSuggestions();
+        doSearch();
+      });
+    });
+    dropdown.style.display = 'block';
+  }, { size: 8 });
+}
+
+function hideSuggestions() {
+  const d = document.getElementById('search-suggestions');
+  d.style.display = 'none';
+  suggestFocusIdx = -1;
+}
 </script>
 
 <script>
